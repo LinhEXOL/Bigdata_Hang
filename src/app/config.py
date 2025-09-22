@@ -1,0 +1,35 @@
+from pyspark.sql import SparkSession
+
+
+class Config:
+    def __init__(self,
+                 elasticsearch_host,
+                 elasticsearch_port,
+                 elasticsearch_input_json,
+                 # elasticsearch_nodes_wan_only,
+                 hdfs_namenode
+                 ):
+        self.elasticsearch_conf = {
+            'es.nodes': elasticsearch_host,
+            'es.port': elasticsearch_port,
+            "es.input.json": elasticsearch_input_json,
+            # "es.nodes.wan.only": elasticsearch_nodes_wan_only
+        }
+        self.hdfs_namenode = hdfs_namenode
+        self.spark_app = None
+
+    def get_elasticsearch_conf(self):
+        return self.elasticsearch_conf
+
+    def get_hdfs_namenode(self):
+        return self.hdfs_namenode
+
+    def initialize_spark_session(self, appName):
+        if self.spark_app == None:
+            self.spark_app = (SparkSession
+                              .builder.master("spark://4e2e9d7fc4d9:7077")
+                              .config("spark.es.nodes", self.elasticsearch_conf["es.nodes"])
+                              .config("spark.es.port", self.elasticsearch_conf["es.port"])
+                              .appName(appName)
+                             .getOrCreate())
+        return self.spark_app
