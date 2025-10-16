@@ -27,7 +27,7 @@ class Config:
     def initialize_spark_session(self, appName):
         if self.spark_app == None:
             self.spark_app = (SparkSession
-                              .builder.master("spark://4e2e9d7fc4d9:7077")
+                              .builder.master("spark://86e83cebd10d:7077")
                               .config("spark.es.nodes", self.elasticsearch_conf["es.nodes"])
                               .config("spark.es.port", self.elasticsearch_conf["es.port"])
                               .appName(appName)

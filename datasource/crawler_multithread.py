@@ -36,16 +36,41 @@ def crawl_content(link):
     company_name = soup.find('p', class_="org-name mb-2")
     data['tên công ty'] = company_name.get_text()
 
-    tmp_data = soup.find("div", class_="d-flex align-items-start mb-2")
-    tmp_data = tmp_data.get_text()
-    data['Địa điểm công việc'] = ' '.join(tmp_data.split())
+    # tmp_data = soup.find("div", class_="d-flex align-items-start mb-2")
+    # tmp_data = tmp_data.get_text()
+    # data['Địa điểm công việc'] = ' '.join(tmp_data.split())
 
-    tmp_data = soup.find_all("div", class_="d-flex align-items-center mb-2")
-    luong = tmp_data[0].find('span', class_='text-primary')
-    data["Mức lương"] = luong.get_text()
+    location_div = soup.find("div", id="job-location")  # ưu tiên id vì ổn định hơn class
+    if location_div:
+    # Lấy toàn bộ text bên trong, bao gồm <span> và <a>
+        location_text = location_div.get_text(separator=" ", strip=True)
+        data['Địa điểm công việc'] = location_text
+    else:
+        data['Địa điểm công việc'] = None
 
-    kinh_nghiem = tmp_data[1].find('span')
-    data["Kinh nghiệm"] = kinh_nghiem.get_text()
+    # tmp_data = soup.find_all("div", class_="d-flex align-items-center mb-2")
+    # luong = tmp_data[0].find('span', class_='text-primary')
+    # data["Mức lương"] = luong.get_text()
+
+    salary_div = soup.find("div", id="job-salary")
+    if salary_div:
+        salary_text = salary_div.find("span", class_="text-primary")
+        data["Mức lương"] = salary_text.get_text(strip=True) if salary_text else None
+    else:
+        data["Mức lương"] = None
+
+    # kinh_nghiem = tmp_data[1].find('span')
+    # data["Kinh nghiệm"] = kinh_nghiem.get_text()
+
+    icon = soup.find("i", class_="cli-suitcase-simple")
+    if icon:
+        span = icon.find_next_sibling("span")
+        if span:
+            data["Kinh nghiệm"] = span.get_text(strip=True)
+        else:
+            data["Kinh nghiệm"] = None
+    else:
+        data["Kinh nghiệm"] = None
 
     job_description = soup.find(id="section-job-description")
     job_des = job_description.find("div", class_="rich-text-content")
@@ -105,7 +130,7 @@ def crawl_contents(filename, links_company):
         if result is not None:
             job_info.append(result)
 
-    with open(filename, 'w') as f:
+    with open(filename, 'w', encoding="utf-8") as f:
         json.dump(job_info, f, indent=2, ensure_ascii=False)
 
 
@@ -119,13 +144,17 @@ if __name__ == "__main__":
 
     print("Start crawling from", args.start, "to", args.end)
     links = get_list_link(int(args.start), int(args.end))
-    print("get list link")
+    print("get list link", links)
 
     with ThreadPoolExecutor(max_workers=5) as executor:
         titles = list(executor.map(get_titles, links))
+        
+    
 
     links_company = [link['href'] for title in titles for link in title]
     print("get all link of company")
+
+    
 
     filename = f"result/recruit_{args.start}_{args.end}.json"
     crawl_contents(filename, links_company)
