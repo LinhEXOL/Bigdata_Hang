@@ -72,8 +72,8 @@ if __name__ == "__main__":
     # ##========save extracted_recruit_df to hdfs========================
     df_to_hdfs = (extracted_recruit_df,)
     df_hdfs_name = ("extracted_recruit",)
-    io_cluster.save_dataframes_to_hdfs("/extracted_data", app_config, df_to_hdfs, df_hdfs_name)
-
+    io_cluster.save_dataframes_to_hdfs("extracted_data", app_config, df_to_hdfs, df_hdfs_name)
+    print('save to hdfs success!!!')
 
 
 
@@ -102,4 +102,6 @@ if __name__ == "__main__":
         # "grouped_knowledges"
     )
     # extracted_recruit_df.show(5)
+    print('start save to elasticsearch!!!!')
     io_cluster.save_df_to_elastic(df_to_elasticsearch, df_es_indices, app_config)
+    print('done all tasks!!!!')
