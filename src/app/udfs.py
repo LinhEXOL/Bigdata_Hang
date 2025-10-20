@@ -91,6 +91,50 @@ def extract_old_pattern(tuoi):
         return []
 
 @udf(returnType=ArrayType(IntegerType()))
+def normalize_salary_vals(sal_min, sal_max, currency):
+    if sal_min is None and sal_max is None:
+        return []
+    BIN = 5  # bước 5 triệu VND
+    CAP = 100  # trần 100 triệu
+
+    def sal_to_bins(v_million):
+        if v_million is None:
+            return []
+        b = int(v_million // BIN)
+        return [min(BIN * b, CAP)]
+
+    def range_to_bins(a_million, b_million):
+        if a_million is None and b_million is None:
+            return []
+        if a_million is None:  # chỉ có max
+            return sal_to_bins(b_million)
+        if b_million is None:  # chỉ có min
+            return sal_to_bins(a_million)
+        if a_million > b_million:
+            a_million, b_million = b_million, a_million
+        a = int(a_million // BIN)
+        b = int(min(b_million, CAP) // BIN)
+        return [BIN * i for i in range(a, b + 1)]
+
+    # đổi đơn vị về "triệu VND"
+    try:
+        if currency and str(currency).upper() == "USD":
+            # 1 USD ≈ 24k VND → triệu VND = usd*24/1000
+            to_million = lambda x: math.floor(float(x) * 24 / 1000) if x is not None else None
+        else:
+            to_million = lambda x: math.floor(float(x) / 1_000_000) if x is not None else None
+
+        a_million = to_million(sal_min)
+        b_million = to_million(sal_max)
+
+        # nếu min==max → trả 1 bin; nếu khác → trả dải bin
+        if a_million is not None and b_million is not None and a_million == b_million:
+            return sal_to_bins(a_million)
+        return range_to_bins(a_million, b_million)
+    except Exception:
+        return []
+
+@udf(returnType=ArrayType(IntegerType()))
 def normalize_salary(quyen_loi):
     BIN_SIZE = 5
 

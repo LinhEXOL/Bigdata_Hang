@@ -6,7 +6,6 @@ services:
     environment:
       - SPARK_APPLICATION_PYTHON_LOCATION=/app/app.py
       - SPARK_MASTER_URL=spark://spark-master:7077
-
     volumes:
       - ./app:/app
     depends_on:
@@ -40,6 +39,17 @@ services:
       - ./hadoop.env
     ports:
       - 50075:50075
+
+  hadoop-client:
+    image: bde2020/hadoop-base:1.1.0-hadoop2.8-java8
+    container_name: hadoop-client
+    depends_on:
+      - node01
+    environment:
+      - CORE_CONF_fs_defaultFS=hdfs://node01:8020
+    volumes:
+      - ./result:/data:ro    
+    command: ["sleep", "infinity"]  
 
   spark-master:
     image: bde2020/spark-master:3.3.0-hadoop3.3

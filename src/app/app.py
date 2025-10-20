@@ -5,23 +5,55 @@ import config
 import queries, io_cluster
 import udfs
 import patterns
+from pathlib import Path
+
+# schema = StructType([
+#     StructField("tên công việc", StringType(), True),
+#     StructField("tên công ty", StringType(), True),
+#     StructField("Địa điểm công việc", StringType(), True),
+#     StructField("Mức lương", StringType(), True),
+#     StructField("Kinh nghiệm", StringType(), True),
+#     StructField("mô tả công việc", StringType(), True),
+#     StructField("kĩ năng yêu cầu", StringType(), True),
+#     StructField("thông tin liên hệ", StringType(), True),
+#     StructField("loại công việc", StringType(), True),
+#     StructField("cấp bậc", StringType(), True),
+#     StructField("học vấn", StringType(), True),
+#     StructField("giới tính", StringType(), True),
+#     StructField("tuổi", StringType(), True),
+#     StructField("ngành nghề", StringType(), True),
+# ])
 
 schema = StructType([
-    StructField("tên công việc", StringType(), True),
-    StructField("tên công ty", StringType(), True),
-    StructField("Địa điểm công việc", StringType(), True),
-    StructField("Mức lương", StringType(), True),
-    StructField("Kinh nghiệm", StringType(), True),
-    StructField("mô tả công việc", StringType(), True),
-    StructField("kĩ năng yêu cầu", StringType(), True),
-    StructField("thông tin liên hệ", StringType(), True),
-    StructField("loại công việc", StringType(), True),
-    StructField("cấp bậc", StringType(), True),
-    StructField("học vấn", StringType(), True),
-    StructField("giới tính", StringType(), True),
-    StructField("tuổi", StringType(), True),
-    StructField("ngành nghề", StringType(), True),
+    StructField("id", IntegerType(), True),
+    StructField("source", StringType(), True),
+    StructField("original_id", StringType(), True),
+
+    StructField("job_title", StringType(), True),
+    StructField("company_name", StringType(), True),
+    StructField("location", StringType(), True),
+    StructField("country", StringType(), True),
+
+    StructField("salary_min", IntegerType(), True),
+    StructField("salary_max", IntegerType(), True),
+    StructField("salary_currency", StringType(), True),
+
+    StructField("job_type", StringType(), True),
+    StructField("industry", StringType(), True),
+    StructField("sector", StringType(), True),
+
+    StructField("skills", ArrayType(StringType()), True),
+
+    StructField("education_level", StringType(), True),
+    StructField("experience_years", IntegerType(), True),
+    StructField("job_description", StringType(), True),
+
+    StructField("sentiment_score", DoubleType(), True),
+
+    StructField("created_at", TimestampType(), True),
+    StructField("updated_at", TimestampType(), True),
 ])
+
 
 
 if __name__ == "__main__":
@@ -38,36 +70,39 @@ if __name__ == "__main__":
     # print()
 
     raw_recruit_df = spark.read.schema(schema).option("multiline", "true").json(
-        "hdfs://node01:8020/datasource/*.json")
-    extracted_recruit_df = raw_recruit_df.select(raw_recruit_df["tên công việc"].alias("JobName"),
-                                                 raw_recruit_df['tên công ty'].alias("CompanyName"),
-                                                 udfs.extract_location("Địa điểm công việc").alias("Location"),
-                                                 udfs.extract_exp_pattern('Kinh nghiệm').alias("Experience"),
+        "hdfs://node01:8020//result/*.json")
+    
+    print('read data successully!!!!')
+    raw_recruit_df.show(5)
+
+    extracted_recruit_df = raw_recruit_df.select(raw_recruit_df["job_title"].alias("JobName"),
+                                                 raw_recruit_df['company_name'].alias("CompanyName"),
+                                                 #udfs.extract_location("location").alias("Location"),
+                                                 raw_recruit_df['experience_years'].alias("Experience"),
                                                  raw_recruit_df['loại công việc'].alias("JobType"),
                                                  raw_recruit_df["cấp bậc"].alias('Level'),
-                                                 udfs.extract_education("học vấn", "kĩ năng yêu cầu").alias('Education'),
-                                                 raw_recruit_df["giới tính"].alias('Sex'),
-                                                 udfs.extract_old_pattern("tuổi").alias("Old"),
-                                                 udfs.extract_framework_plattform("mô tả công việc",
-                                                                                  "kĩ năng yêu cầu").alias(
-                                                     "FrameworkPlattforms"),
+                                                 udfs.extract_education("education_level").alias('Education'),
+                                                raw_recruit_df["giới tính"].alias('Sex'),
+                                                udfs.extract_old_pattern("tuổi").alias("Old"),
+                                                udfs.extract_framework_plattform("job_description","skills").alias(
+                                                    "Knowledges"),
                                                  udfs.extract_IT_language("mô tả công việc", "kĩ năng yêu cầu").alias(
                                                      "JobLanguages"),
-                                                 udfs.extract_language("kĩ năng yêu cầu").alias("Languages"),
+                                                 udfs.extract_language("skills").alias("Languages"),
                                                  udfs.extract_design_pattern("mô tả công việc",
                                                                              "kĩ năng yêu cầu").alias("DesignPatterns"),
                                                  udfs.extract_knowledge("mô tả công việc", "kĩ năng yêu cầu").alias(
-                                                     "Knowledges"),
-                                                 udfs.normalize_salary("Mức lương").alias("Salaries"),
+                                                     "FrameworkPlattforms"),
+                                                udfs.normalize_salary_vals("salary_min","salary_max","salary_currency" ).alias("Salaries"),
                                                  raw_recruit_df['thông tin liên hệ'].alias("Contact"),
                                                 udfs.extract_job_type("ngành nghề").alias("JobSummary"),
-                                                 ).withColumn('Knowledge', udfs.get_grouped_knowledge("Knowledges"))
+                                                 )
     print('extract successuly!!!!')
     extracted_recruit_df.cache()
     extracted_recruit_df.show(5)
 
-    salaries_not_null= queries.get_not_null_salary(extracted_recruit_df)
-    salaries_not_null.show(5)
+    # salaries_not_null= queries.get_not_null_salary(extracted_recruit_df)
+    # salaries_not_null.show(5)
 
     # ##========save extracted_recruit_df to hdfs========================
     df_to_hdfs = (extracted_recruit_df,)
@@ -92,13 +127,13 @@ if __name__ == "__main__":
     ##========save some df to elasticsearch========================
     df_to_elasticsearch = (
         extracted_recruit_df,
-        salaries_not_null
+        # salaries_not_null
         # grouped_knowledge_df
     )
 
     df_es_indices = (
         "recruit",
-        'salaries'
+        # 'salaries'
         # "grouped_knowledges"
     )
     # extracted_recruit_df.show(5)
