@@ -51,7 +51,6 @@ def extract_design_pattern(mo_ta_cong_viec, yeu_cau_ung_vien):
     return design_patterns
 
 
-
 @udf(returnType=ArrayType(IntegerType()))
 def extract_exp_pattern(kinh_nghiem):
     # lấy ra tất cả các số nguyên <-> số năm kinh nghiệm
@@ -327,9 +326,84 @@ def get_grouped_knowledge(knowledge):
             return res
 
 @udf(returnType=ArrayType(StringType()))
-def extract_education(hoc_van, ki_nang_yeu_cau):
+def extract_education( ki_nang_yeu_cau):
     res=[]
     for edu in patterns.educations:
-        if re.search(edu, hoc_van+ " "+ki_nang_yeu_cau, re.IGNORECASE):
+        if re.search(edu, " "+ki_nang_yeu_cau, re.IGNORECASE):
             res.append(edu)
     return res
+
+def _norm(s: str) -> str:
+    if not s:
+        return ""
+    s = s.strip().lower()
+    s = unicodedata.normalize("NFD", s)
+    s = "".join(c for c in s if not unicodedata.combining(c))
+    s = re.sub(r"\s+", " ", s)
+    return s
+
+def _hours_between(t1: str, t2: str) -> float:
+    h1, m1 = map(int, t1.split(":"))
+    h2, m2 = map(int, t2.split(":"))
+    return max(0, (h2*60 + m2 - (h1*60 + m1)) / 60.0)
+
+def _estimate_hours_per_day(text: str) -> float | None:
+    times = re.findall(r'(\d{1,2}:\d{2})', text)
+    hours = 0.0
+    for i in range(0, len(times)-1, 2):
+        hours += _hours_between(times[i], times[i+1])
+    if hours == 0:
+        m = re.search(r'(\d{1,2})\s*(?:h|gio|giờ|tieng|tiếng)', _norm(text))
+        if m:
+            hours = float(m.group(1))
+
+    if hours >= 8.5:
+        hours -= 1.0
+    return hours if hours > 0 else None
+
+def _estimate_days_per_week(text_norm: str) -> float | None:
+    # range: "thu 2 - thu 6"
+    m = re.search(r'thu\s*([2-7])\s*-\s*thu\s*([2-7])', text_norm)
+    if m:
+        a, b = int(m.group(1)), int(m.group(2))
+        if b >= a:
+            return float(b - a + 1)
+
+    # danh sách rời rạc “thứ 2, thứ 4, thứ 6”
+    days = set(int(x) for x in re.findall(r'thu\s*([2-7])', text_norm))
+    has_cn = bool(re.search(r'chu\s*nhat|cn', text_norm))
+    if days:
+        d = len(days) + (1 if has_cn else 0)
+        # “2 thu 7/thang” ~ +0.5 ngày/tuần (xấp xỉ)
+        if re.search(r'(\d+)\s*thu\s*7\s*/\s*thang', text_norm):
+            d = max(d, 5)  # về cơ bản vẫn coi như chế độ full-time
+        return float(d)
+
+    return None
+@udf(returnType=FloatType())
+def classify_work_schedule(text: str) -> str | None:
+    if not text:
+        return None
+    tnorm = _norm(text)
+
+    if "toan thoi gian" in tnorm or "full time" in tnorm:
+        return "Toàn thời gian"
+    if "ban thoi gian" in tnorm or "part time" in tnorm:
+        return "Bán thời gian"
+
+    hpday = _estimate_hours_per_day(text)
+    dpw = _estimate_days_per_week(tnorm)
+
+    if hpday is None and dpw is not None:
+        hpday = 8.0
+    if dpw is None and hpday is not None:
+        dpw = 5.0
+
+    if hpday is not None and dpw is not None:
+        total = hpday * dpw
+        return "Toàn thời gian" if total >= 35 else "Bán thời gian"
+
+    if re.search(r'thu\s*2\s*-\s*thu\s*6', tnorm) or re.search(r'thu\s*2\s*-\s*thu\s*7', tnorm):
+        return "Toàn thời gian"
+
+    return "Bán thời gian"
